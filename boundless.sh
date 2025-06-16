@@ -77,6 +77,31 @@ EOL
   log "配置文件已生效"
 }
 
+# 检查钱包余额的函数
+check_balance() {
+  log "检查钱包 ETH 和 USDC 余额..."
+  if [ ! -f "$ENV_FILE" ]; then
+    log "错误：$ENV_FILE 文件不存在，请先配置 RPC_URL 和 PRIVATE_KEY"
+    return 1
+  fi
+  source "$ENV_FILE"
+  boundless account balance --rpc-info "$RPC_URL" || { log "查询余额失败"; exit 1; }
+  log "余额查询完成"
+}
+
+# 发起质押的函数
+deposit_stake() {
+  log "发起质押..."
+  if [ ! -f "$ENV_FILE" ]; then
+    log "错误：$ENV_FILE 文件不存在，请先配置 RPC_URL 和 PRIVATE_KEY"
+    return 1
+  fi
+  source "$ENV_FILE"
+  log "运行 boundless account deposit-stake 10..."
+  boundless account deposit-stake 10 --rpc-info "$RPC_URL" || { log "质押失败"; exit 1; }
+  log "质押成功，USDC 已存入质押池"
+}
+
 # 安装节点并运行 Boundless CLI 的函数
 install_and_run() {
   log "开始安装 Boundless 环境和 CLI..."
@@ -103,61 +128,62 @@ install_and_run() {
   fi
 
   # 3. 安装 Risc0
-  log "安装 Risc0..."
-  if command -v rzup >/dev/null 2>&1; then
-    log "Risc0 已安装，版本: $(rzup --version 2>/dev/null || echo '未知')"
+  log "正在安装 Risc0..."
+  if command -x rzup >/dev/null 2>&1; then
+      log "Risc0 已安装，版本：$(rzup --version 2>/dev/null || echo '未知')"
   else
-    log "开始安装 Risc0..."
-    max_attempts=3
-    attempt=1
-    until [ $attempt -gt $max_attempts ]; do
-      log "尝试安装 Risc0 (第 $attempt 次)..."
-      if curl -L https://risczero.com/install | bash; then
-        log "Risc0 安装脚本执行成功"
-        break
-      else
-        log "Risc0 安装脚本执行失败，重试..."
-        ((attempt++))
-        sleep 5
+      log "开始安装 Risc0..."
+      max_attempts=3
+      attempt=1
+      while [ $attempt" -le "$max_attempts" ]; do
+          log "尝试安装 Risc0 (第 $attempt 次)..."
+          if curl -L https://risczero.com/install | bash; then
+              log "Risc0 安装成功"
+              break
+          else
+              log "Risc0 安装失败，重试..."
+              attempt=$((attempt + 1))
+              sleep 5
+          fi
+      done
+      if [ "$attempt" -gt "$max_attempts" ]; then
+          log "Risc0 安装失败，超过最大重试次数"
+          exit 1
       fi
-    done
-    if [ $attempt -gt $max_attempts ]; then
-      log "Risc0 安装失败，超过最大重试次数"
-      exit 1
-    fi
 
-    # 配置 Risc0 的 PATH
-    log "配置 Risc0 PATH..."
-    export PATH="$HOME/.risc0/bin:$PATH"
-    if ! grep -q "$HOME/.risc0/bin" ~/.bashrc; then
-      echo 'export PATH="$HOME/.risc0/bin:$PATH"' >> ~/.bashrc
-      log "已将 $HOME/.risc0/bin 添加到 ~/.bashrc"
-    fi
-    source ~/.bashrc
+      # 配置 Risc0 的 PATH
+      log "配置 Risc0 PATH..."
+      export PATH="$HOME/.risc0/bin:$PATH"
+      if ! grep -q "$HOME/.risc0/bin" ~/.bashrc; then
+          echo 'export PATH="$HOME/.risc0/bin:$PATH"' >> ~/.bashrc
+          log "已将 $HOME/.risc0/bin 添加到 ~/.bashrc"
+      fi
+      source ~/.bashrc
 
-    # 验证 rzup
-    if command -v rzup >/dev/null 2>&1; then
-      log "rzup 命令可用，版本: $(rzup --version 2>/dev/null || echo '未知')"
-    else
-      log "rzup 命令不可用，请检查 $HOME/.risc0/bin 是否存在"
-      ls -l "$HOME/.risc0/bin" >> "$LOG_FILE" 2>&1
-      exit 1
-    fi
+      # 验证 rzup
+      if command -v rzup >/dev/null 2>&1; then
+          log "rzup 命令可用，版本：$(rzup --version 2>/dev/null || echo '未知')"
+      else
+          log "rzup命令不可用，请检查 $HOME/.risc0/bin 是否存在"
+          ls -l "$HOME/.risc0/bin" >> "$LOG_FILE" 2>&1
+          exit 1
+      # fi
 
-    # 运行 rzup install
-    log "运行 rzup install..."
-    rzup install || { log "rzup install 失败"; exit 1; }
+      # 运行 rzup install
+      log "运行 rzup install..."
+      rzup install || { log "rzup install 失败"; exit 1; }
   fi
 
   # 4. 安装 bento 客户端
   log "安装 bento 客户端..."
   if command -v bento_cli >/dev/null 2>&1; then
-    log "bento_cli 已安装，跳过"
+      log "bento_cli 已安装，跳过"
   else
-    cargo install --git https://github.com/risc0/risc0 bento-client --bin bento_cli || { log "bento_cli 安装失败"; exit 1; }
+      cargo install --git https://github.com/risc0/risc0 bento-client --bin bento_cli || { log "bento_cli 安装失败"; exit 1; }
   fi
+fi
 
-  # 5. 配置 PATH（Cargo）
+  # 配置 5. 配置 PATH （Cargo）
   log "配置 Cargo PATH..."
   if grep -q "$HOME/.cargo/bin" ~/.bashrc; then
     log "Cargo PATH 已配置，跳过"
@@ -167,6 +193,7 @@ install_and_run() {
     source ~/.bashrc
     log "Cargo PATH 配置完成"
   fi
+}
 
   # 6. 安装 Boundless CLI
   log "安装 Boundless CLI..."
@@ -186,33 +213,25 @@ install_and_run() {
   if ! command -v screen >/dev/null 2>&1; then
     log "screen 未安装，正在安装..."
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-      sudo apt-get update && sudo apt-get install -y screen || { log "screen 安装失败"; exit 1; }
+      sudo apt-get update && sudo apt-get install -y screen || { log "screen 安装失败"; exit  exit 1; }
     elif [[ "$OSTYPE" == "darwin"* ]]; then
-      brew install screen || { log "screen 安装失败"; exit 1; }
+      brew install screen || { log "screen 安装失败"; exit  exit 1; }
     else
       log "不支持的操作系统，请手动安装 screen"
       exit 1
     fi
-  fi
+  fi fi
 
-  # 9. 执行 deposit-stake 命令（如果需要）
-  read -p "是否运行 'boundless account deposit-stake 10'？(y/n): " run_deposit
-  if [ "$run_deposit" = "y" ]; then
-    log "运行 boundless account deposit-stake 10..."
-    boundless account deposit-stake 10 --rpc-url "$RPC_URL" || { log "boundless account deposit-stake 失败"; exit 1; }
-    log "boundless account deposit-stake 10 执行成功"
-  else
-    log "跳过 deposit-stake 命令"
-  fi
+}
 
-  # 10. 在 screen 中运行 Boundless CLI
+  # 9. 在 screen 中运行 Boundless CLI
   log "在 screen 会话中启动 Boundless CLI..."
-  screen -dmS boundless bash -c "source \"$ENV_FILE\" && boundless --rpc-url \"$RPC_URL\"; exec bash" || { log "screen 会话创建失败"; exit 1; }
+  screen -dmS boundless bash -c "source \"$ENV_FILE\" && boundless --rpc-info \"$RPC_URL\"; exec bash" || { log "screen 会话创建失败"; exit 1; }
   log "Boundless CLI 已在 screen 会话 'boundless' 中运行"
   log "使用 'screen -r boundless' 查看或恢复会话"
 }
 
-# 删除节点和会话的函数
+# 删除节点和的会话的函数
 delete_node_and_session() {
   log "开始删除节点和会话..."
 
@@ -223,14 +242,17 @@ delete_node_and_session() {
   else
     log "没有找到 boundless screen 会话，跳过"
   fi
+}
 
   # 2. 删除 boundless 仓库
   if [ -d "$HOME/boundless" ]; then
+    log "删除 boundless 仓库..."
     log "删除 boundless 仓库..."
     rm -rf "$HOME/boundless" || { log "删除 boundless 仓库失败"; exit 1; }
   else
     log "boundless 仓库不存在，跳过"
   fi
+}
 
   # 3. 删除 .env.eth-sepolia 文件
   if [ -f "$ENV_FILE" ]; then
@@ -238,7 +260,7 @@ delete_node_and_session() {
     rm -f "$ENV_FILE" || { log "删除 $ENV_FILE 文件失败"; exit 1; }
   else
     log "$ENV_FILE 文件不存在，跳过"
-  fi
+  fi fi
 
   # 4. 卸载 boundless-cli
   if command -v boundless >/dev/null 2>&1; then
@@ -247,14 +269,16 @@ delete_node_and_session() {
   else
     log "boundless-cli 未安装，跳过"
   fi
+}
 
   # 5. 卸载 bento_cli
   if command -v bento_cli >/dev/null 2>&1; then
     log "卸载 bento_cli..."
     cargo uninstall bento-client || { log "卸载 bento_cli 失败"; exit 1; }
   else
-    log "bento_cli 未安装，跳过"
+    log "bento 未安装，跳过"
   fi
+}
 
   # 6. 提示用户手动清理 Rust 和 Risc0（可选）
   log "注意：Rust 和 Risc0 未自动卸载，因其可能被其他项目使用"
@@ -273,6 +297,7 @@ delete_node_and_session() {
       log "保留 PATH 配置"
     fi
   fi
+}
 
   log "节点和会话删除完成！"
 }
@@ -293,10 +318,12 @@ main_menu() {
     echo "=== Boundless 安装与管理菜单 ==="
     echo "1. 安装节点，配置 RPC_URL 和 PRIVATE_KEY，并在 screen 中运行 Boundless CLI"
     echo "2. 查看日志"
-    echo "3. 删除节点和会话"
-    echo "4. 配置或更新 RPC_URL 和 PRIVATE_KEY"
-    echo "5. 退出"
-    read -p "请选择操作 (1-5): " choice
+    echo "3. 配置或更新 RPC_URL 和 PRIVATE_KEY"
+    echo "4. 发起质押 (boundless account deposit-stake 10)"
+    echo "5. 查看钱包 ETH 和 USDC 余额"
+    echo "6. 删除节点和会话"
+    echo "7. 退出"
+    read -p "请选择操作 (1-7): " choice
 
     case $choice in
       1)
@@ -306,17 +333,23 @@ main_menu() {
         view_logs
         ;;
       3)
-        delete_node_and_session
-        ;;
-      4)
         configure_env
         ;;
+      4)
+        deposit_stake
+        ;;
       5)
+        check_balance
+        ;;
+      6)
+        delete_node_and_session
+        ;;
+      7)
         log "退出脚本"
         exit 0
         ;;
       *)
-        log "无效选项，请输入 1-5"
+        log "无效选项，请输入 1-7"
         ;;
     esac
   done
