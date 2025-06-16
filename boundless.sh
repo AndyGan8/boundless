@@ -145,4 +145,4 @@ touch "$LOG_FILE"
 log "脚本启动"
 
 # 启动主菜单
-main_menu
+main
