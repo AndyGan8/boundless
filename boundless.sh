@@ -56,20 +56,59 @@ install_and_run() {
   # 2. 安装 Rust
   log "安装 Rust..."
   if command -v rustc >/dev/null 2>&1; then
-    log "Rust 已安装，跳过"
+    log "Rust 已安装，版本: $(rustc --version)"
   else
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y || { log "Rust 安装失败"; exit 1; }
-    source $HOME/.cargo/env
+    source "$HOME/.cargo/env"
+    log "Rust 安装完成，版本: $(rustc --version)"
   fi
 
   # 3. 安装 Risc0
   log "安装 Risc0..."
   if command -v rzup >/dev/null 2>&1; then
-    log "Risc0 已安装，跳过"
+    log "Risc0 已安装，版本: $(rzup --version 2>/dev/null || echo '未知')"
   else
-    curl -L https://risczero.com/install | bash || { log "Risc0 安装失败"; exit 1; }
+    log "开始安装 Risc0..."
+    # 重试机制，最多尝试 3 次
+    max_attempts=3
+    attempt=1
+    until [ $attempt -gt $max_attempts ]; do
+      log "尝试安装 Risc0 (第 $attempt 次)..."
+      if curl -L https://risczero.com/install | bash; then
+        log "Risc0 安装脚本执行成功"
+        break
+      else
+        log "Risc0 安装脚本执行失败，重试..."
+        ((attempt++))
+        sleep 5
+      fi
+    done
+    if [ $attempt -gt $max_attempts ]; then
+      log "Risc0 安装失败，超过最大重试次数"
+      exit 1
+    fi
+
+    # 配置 Risc0 的 PATH
+    log "配置 Risc0 PATH..."
+    export PATH="$HOME/.risc0/bin:$PATH"
+    if ! grep -q "$HOME/.risc0/bin" ~/.bashrc; then
+      echo 'export PATH="$HOME/.risc0/bin:$PATH"' >> ~/.bashrc
+      log "已将 $HOME/.risc0/bin 添加到 ~/.bashrc"
+    fi
     source ~/.bashrc
-    rzup install || { log "Risc0 安装失败"; exit 1; }
+
+    # 验证 rzup 是否可用
+    if command -v rzup >/dev/null 2>&1; then
+      log "rzup 命令可用，版本: $(rzup --version 2>/dev/null || echo '未知')"
+    else
+      log "rzup 命令不可用，请检查 $HOME/.risc0/bin 是否存在"
+      ls -l "$HOME/.risc0/bin" >> "$LOG_FILE" 2>&1
+      exit 1
+    fi
+
+    # 运行 rzup install
+    log "运行 rzup install..."
+    rzup install || { log "rzup install 失败"; exit 1; }
   fi
 
   # 4. 安装 bento 客户端
@@ -80,14 +119,15 @@ install_and_run() {
     cargo install --git https://github.com/risc0/risc0 bento-client --bin bento_cli || { log "bento_cli 安装失败"; exit 1; }
   fi
 
-  # 5. 配置 PATH
-  log "配置 PATH..."
+  # 5. 配置 PATH（Cargo）
+  log "配置 Cargo PATH..."
   if grep -q "$HOME/.cargo/bin" ~/.bashrc; then
-    log "PATH 已配置，跳过"
+    log "Cargo PATH 已配置，跳过"
   else
     export PATH="$HOME/.cargo/bin:$PATH"
     echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
     source ~/.bashrc
+    log "Cargo PATH 配置完成"
   fi
 
   # 6. 安装 Boundless CLI
@@ -172,15 +212,15 @@ delete_node_and_session() {
   # 6. 提示用户手动清理 Rust 和 Risc0（可选）
   log "注意：Rust 和 Risc0 未自动卸载，因其可能被其他项目使用"
   log "如需卸载 Rust，请运行：rustup self uninstall"
-  log "如需卸载 Risc0，请手动删除相关文件（参考 Risc0 文档）"
+  log "如需卸载 Risc0，请手动删除 $HOME/.risc0 目录并从 ~/.bashrc 移除相关 PATH"
 
   # 7. 清理 PATH 配置（可选）
-  if grep -q "$HOME/.cargo/bin" ~/.bashrc; then
-    log "检测到 PATH 中包含 $HOME/.cargo/bin"
+  if grep -q "$HOME/.cargo/bin\|$HOME/.risc0/bin" ~/.bashrc; then
+    log "检测到 PATH 中包含 $HOME/.cargo/bin 或 $HOME/.risc0/bin"
     read -p "是否从 ~/.bashrc 中移除 PATH 配置？(y/n): " remove_path
     if [ "$remove_path" = "y" ]; then
       log "从 ~/.bashrc 中移除 PATH 配置..."
-      sed -i.bak "/$HOME\/.cargo\/bin/d" ~/.bashrc || { log "移除 PATH 配置失败"; exit 1; }
+      sed -i.bak -E "/($HOME\/.cargo\/bin|$HOME\/.risc0\/bin)/d" ~/.bashrc || { log "移除 PATH 配置失败"; exit 1; }
       log "PATH 配置已移除，请运行 'source ~/.bashrc' 刷新环境"
     else
       log "保留 PATH 配置"
