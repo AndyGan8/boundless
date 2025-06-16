@@ -88,7 +88,124 @@ EOL
   log "配置文件已生效"
 }
 
-# 其他函数（check_balance, deposit_stake, install_and_run, delete_node_and_session, view_logs）保持不变，但需替换 --rpc-info 为 --rpc-url（若适用）
+# 安装并运行 Boundless CLI
+install_and_run() {
+  log "开始安装和运行 Boundless 节点..."
+
+  # 检查是否已安装 Boundless CLI
+  if ! command -v boundless &> /dev/null; then
+    log "未检测到 Boundless CLI，正在安装..."
+
+    # 安装 Node.js 和 npm
+    if ! command -v npm &> /dev/null; then
+      log "安装 Node.js 和 npm..."
+      sudo apt update
+      sudo apt install -y nodejs npm >> "$LOG_FILE" 2>&1 || {
+        log "Node.js 和 npm 安装失败，请检查日志 $LOG_FILE"
+        exit 1
+      }
+      log "Node.js 和 npm 安装完成"
+    fi
+
+    # 安装 Boundless CLI（假设通过 npm，需根据官方文档确认）
+    log "安装 Boundless CLI..."
+    npm install -g @boundlessprotocol/cli >> "$LOG_FILE" 2>&1 || {
+      log "Boundless CLI 安装失败，请检查日志 $LOG_FILE"
+      exit 1
+    }
+    log "Boundless CLI 安装完成"
+  else
+    log "Boundless CLI 已安装"
+  fi
+
+  # 配置环境变量
+  configure_env || {
+    log "环境变量配置失败"
+    exit 1
+  }
+
+  # 检查 screen 是否安装
+  if ! command -v screen &> /dev/null; then
+    log "安装 screen..."
+    sudo apt update
+    sudo apt install -y screen >> "$LOG_FILE" 2>&1 || {
+      log "screen 安装失败，请检查日志 $LOG_FILE"
+      exit 1
+    }
+    log "screen 安装完成"
+  fi
+
+  # 在 screen 会话中运行 Boundless CLI
+  log "启动 Boundless CLI 在 screen 会话中..."
+  screen -dmS boundless boundless start --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" >> "$LOG_FILE" 2>&1
+  if [ $? -eq 0 ]; then
+    log "Boundless CLI 已启动，screen 会话名称为 'boundless'"
+    log "使用 'screen -r boundless' 查看会话"
+  else
+    log "Boundless CLI 启动失败，请检查日志 $LOG_FILE"
+    exit 1
+  fi
+}
+
+# 查看日志
+view_logs() {
+  log "查看日志 $LOG_FILE ..."
+  if [ -f "$LOG_FILE" ]; then
+    less "$LOG_FILE"
+  else
+    log "日志文件 $LOG_FILE 不存在"
+  fi
+}
+
+# 发起质押
+deposit_stake() {
+  log "发起质押 (boundless account deposit-stake 10)..."
+  source "$ENV_FILE"
+  boundless account deposit-stake 10 --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" >> "$LOG_FILE" 2>&1 || {
+    log "质押失败，请检查日志 $LOG_FILE"
+    exit 1
+  }
+  log "质押操作已完成"
+}
+
+# 查看钱包余额
+check_balance() {
+  log "查看钱包 ETH 和 USDC 余额..."
+  source "$ENV_FILE"
+  boundless account balance --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" >> "$LOG_FILE" 2>&1 || {
+    log "查询余额失败，请检查日志 $LOG_FILE"
+    exit 1
+  }
+  log "余额查询完成，查看日志 $LOG_FILE 获取详情"
+}
+
+# 删除节点和会话
+delete_node_and_session() {
+  log "删除节点和会话..."
+  # 终止 screen 会话
+  screen -S boundless -X quit >> "$LOG_FILE" 2>&1
+  log "已终止 screen 会话 'boundless'"
+
+  # 删除 Boundless CLI 和相关文件
+  log "卸载 Boundless CLI..."
+  npm uninstall -g @boundlessprotocol/cli >> "$LOG_FILE" 2>&1 || {
+    log "Boundless CLI 卸载失败，请检查日志 $LOG_FILE"
+  }
+  log "Boundless CLI 已卸载"
+
+  # 删除配置文件
+  if [ -f "$ENV_FILE" ]; then
+    rm "$ENV_FILE"
+    log "已删除配置文件 $ENV_FILE"
+  fi
+
+  # 删除日志文件
+  if [ -f "$LOG_FILE" ]; then
+    rm "$LOG_FILE"
+    log "已删除日志文件 $LOG_FILE"
+  fi
+  log "节点和会话清理完成"
+}
 
 # 主菜单
 main_menu() {
