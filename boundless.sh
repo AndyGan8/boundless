@@ -182,29 +182,49 @@ check_balance() {
 # 删除节点和会话
 delete_node_and_session() {
   log "删除节点和会话..."
-  # 终止 screen 会话
-  screen -S boundless -X quit >> "$LOG_FILE" 2>&1
-  log "已终止 screen 会话 'boundless'"
 
-  # 删除 Boundless CLI 和相关文件
+  # 终止 screen 会话
+  if screen -list | grep -q "boundless"; then
+    screen -S boundless -X quit >> "$LOG_FILE" 2>&1
+    log "已终止 screen 会话 'boundless'"
+  else
+    log "未找到 screen 会话 'boundless'"
+  fi
+
+  # 卸载 Boundless CLI
   log "卸载 Boundless CLI..."
   npm uninstall -g @boundlessprotocol/cli >> "$LOG_FILE" 2>&1 || {
-    log "Boundless CLI 卸载失败，请检查日志 $LOG_FILE"
+    log "警告：Boundless CLI 卸载失败，请检查日志 $LOG_FILE"
   }
-  log "Boundless CLI 已卸载"
+  log "Boundless CLI 卸载完成"
 
-  # 删除配置文件
-  if [ -f "$ENV_FILE" ]; then
-    rm "$ENV_FILE"
-    log "已删除配置文件 $ENV_FILE"
+  # 删除 Boundless 目录及其内容
+  if [ -d "$HOME/boundless" ]; then
+    log "删除 Boundless 目录 $HOME/boundless..."
+    rm -rf "$HOME/boundless" >> "$LOG_FILE" 2>&1 || {
+      log "错误：无法删除 $HOME/boundless，请检查权限或日志 $LOG_FILE"
+    }
+    log "Boundless 目录已删除"
+  else
+    log "Boundless 目录 $HOME/boundless 不存在"
   fi
 
-  # 删除日志文件
+  # 删除日志文件（在最后删除，避免丢失日志）
   if [ -f "$LOG_FILE" ]; then
-    rm "$LOG_FILE"
-    log "已删除日志文件 $LOG_FILE"
+    log "删除日志文件 $LOG_FILE..."
+    rm "$LOG_FILE" >> /dev/null 2>&1 || {
+      log "错误：无法删除日志文件 $LOG_FILE"
+    }
+    log "日志文件已删除"
+  else
+    log "日志文件 $LOG_FILE 不存在"
   fi
+
   log "节点和会话清理完成"
+  log "请检查以下文件是否已删除："
+  log "- $ENV_FILE"
+  log "- $LOG_FILE"
+  log "- $HOME/boundless"
 }
 
 # 主菜单
