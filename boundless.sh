@@ -140,7 +140,18 @@ install_and_run() {
       log "Risc0 安装失败，请检查日志 $LOG_FILE"
       exit 1
     }
+    # 显式设置 PATH
+    export PATH="$HOME/.risc0/bin:$PATH"
+    if ! grep -q 'export PATH="$HOME/.risc0/bin:$PATH"' "$HOME/.bashrc"; then
+      echo 'export PATH="$HOME/.risc0/bin:$PATH"' >> "$HOME/.bashrc"
+      log "Risc0 PATH 已写入 ~/.bashrc"
+    fi
     source "$HOME/.bashrc"
+    if ! command -v rzup &> /dev/null; then
+      log "错误：rzup 命令不可用，请检查安装日志 $LOG_FILE"
+      exit 1
+    }
+    log "安装 Risc0 工具链..."
     rzup install >> "$LOG_FILE" 2>&1 || {
       log "Risc0 工具链安装失败，请检查日志 $LOG_FILE"
       exit 1
@@ -162,12 +173,12 @@ install_and_run() {
     log "Bento 客户端已安装"
   fi
 
-  # 设置 PATH
+  # 设置 Cargo PATH
   export PATH="$HOME/.cargo/bin:$PATH"
   if ! grep -q 'export PATH="$HOME/.cargo/bin:$PATH"' "$HOME/.bashrc"; then
     echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$HOME/.bashrc"
     source "$HOME/.bashrc"
-    log "PATH 已更新并写入 ~/.bashrc"
+    log "Cargo PATH 已更新并写入 ~/.bashrc"
   fi
 
   # 安装 Boundless CLI
