@@ -246,6 +246,10 @@ view_logs() {
 deposit_stake() {
   log "发起质押 (boundless account deposit-stake 10)..."
   source "$ENV_FILE"
+  if [ -z "$RPC_URL" ]; then
+    log "错误：RPC_URL 未定义"
+    return 1
+  fi
   boundless account deposit-stake 10 >> "$LOG_FILE" 2>&1 || {
     log "质押失败，请检查日志 $LOG_FILE"
     log "提示：请确保账户有足够的 USDC 和 ETH（可通过 https://faucet.circle.com 领取 Sepolia 测试 USDC）"
@@ -264,6 +268,10 @@ deposit_stake() {
 check_balance() {
   log "查看钱包 ETH 和 USDC 余额..."
   source "$ENV_FILE"
+  if [ -z "$RPC_URL" ]; then
+    log "错误：RPC_URL 未定义"
+    return 1
+  fi
   boundless account balance >> "$LOG_FILE" 2>&1 || {
     log "查询余额失败，请检查日志 $LOG_FILE"
     log "提示：请确保账户有足够的 USDC 和 ETH（可通过 https://faucet.circle.com 领取 Sepolia 测试 USDC）"
