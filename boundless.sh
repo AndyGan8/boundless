@@ -118,6 +118,7 @@ install_and_run() {
     log "Boundless 仓库克隆完成"
   else
     log "Boundless 仓库已存在"
+    cd "$HOME/boundless"
   fi
 
   # 安装 Rust
@@ -326,55 +327,4 @@ delete_node_and_session() {
 main_menu() {
   while true; do
     echo "=== Boundless 安装与管理菜单 ==="
-    echo "1. 安装节点，配置 RPC_URL 和 PRIVATE_KEY，并在 screen 中运行 Boundless Broker"
-    echo "2. 查看日志"
-    echo "3. 配置或更新 RPC_URL 和 PRIVATE_KEY"
-    echo "4. 发起质押 (boundless account deposit-stake 10)"
-    echo "5. 查看钱包 ETH 和 USDC 余额"
-    echo "6. 删除节点和会话"
-    echo "7. 退出"
-    read -p "请选择操作 (1-7): " choice
-
-    case $choice in
-      1)
-        install_and_run
-        ;;
-      2)
-        view_logs
-        ;;
-      3)
-        configure_env
-        ;;
-      4)
-        deposit_stake
-        ;;
-      5)
-        check_balance
-        ;;
-      6)
-        delete_node_and_session
-        ;;
-      7)
-        log "退出脚本"
-        exit 0
-        ;;
-      *)
-        log "无效选项，请输入 1-7"
-        ;;
-    esac
-  done
-}
-
-# 脚本入口
-if [ "$1" = "--auto-install" ]; then
-  log "执行一键安装..."
-  install_and_run
-  exit 0
-fi
-
-# 初始化日志文件
-touch "$LOG_FILE"
-log "脚本启动"
-
-# 启动主菜单
-main_menu
+    echo "1. 安装节点，配置 RPC_URL 和 PRIVATE_KEY，并在 screen
