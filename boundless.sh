@@ -27,9 +27,10 @@ show_menu() {
     echo "1. 安装节点"
     echo "2. 配置环境文件"
     echo "3. 质押 USDC"
-    echo "4. 删除节点文件"
-    echo "5. 退出"
-    echo -n "请选择操作 [1-5]: "
+    echo "4. 质押 ETH"
+    echo "5. 删除节点文件"
+    echo "6. 退出"
+    echo -n "请选择操作 [1-6]: "
 }
 
 # 1. 安装节点
@@ -146,7 +147,56 @@ stake_usdc() {
     echo -e "${YELLOW}- 合约地址：如果需要显式指定，请参考 Boundless 官方文档${NC}"
 }
 
-# 4. 删除节点文件
+# 4. 质押 ETH
+stake_eth() {
+    echo -e "${GREEN}开始质押 ETH...${NC}"
+
+    # 检查 boundless CLI 是否安装
+    if ! command -v boundless &> /dev/null; then
+        echo -e "${RED}boundless CLI 未安装，请先运行选项 1 安装节点${NC}"
+        exit 1
+    fi
+
+    # 检查环境文件是否存在
+    if [ ! -f $ENV_FILE ]; then
+        echo -e "${RED}环境文件 $ENV_FILE 不存在，请先运行选项 2 配置环境${NC}"
+        exit 1
+    fi
+
+    # 加载环境变量
+    source $ENV_FILE
+
+    # 检查 RPC_URL 和 PRIVATE_KEY 是否存在
+    if [ -z "$RPC_URL" ] || [ -z "$PRIVATE_KEY" ]; then
+        echo -e "${RED}环境变量 RPC_URL 或 PRIVATE_KEY 未设置，请检查 $ENV_FILE 文件${NC}"
+        exit 1
+    fi
+
+    # 执行质押 0.00009 ETH，添加重试机制
+    echo "执行质押 0.00009 ETH..."
+    max_attempts=3
+    attempt=1
+    while [ $attempt -le $max_attempts ]; do
+        echo -e "${YELLOW}尝试 $attempt/$max_attempts...${NC}"
+        boundless --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" account deposit 0.00009
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}质押成功！请检查 CLI 返回的质押信息${NC}"
+            return 0
+        fi
+        echo -e "${RED}尝试 $attempt 失败，重试中...${NC}"
+        sleep 5 # 等待 5 秒后重试
+        ((attempt++))
+    done
+
+    echo -e "${RED}质押失败，请检查以下内容：${NC}"
+    echo -e "${YELLOW}- RPC URL：确保使用 Alchemy/Infura 的 Base 主网 RPC，避免速率限制${NC}"
+    echo -e "${YELLOW}- 私钥：确保私钥正确且对应钱包有权限${NC}"
+    echo -e "${YELLOW}- ETH 余额：钱包需有至少 0.00009 ETH 外加 Gas 费用${NC}"
+    echo -e "${YELLOW}- CLI 参数：检查是否需要以 wei 单位输入（0.00009 ETH = 90000000000000）${NC}"
+    echo -e "${YELLOW}- 合约地址：如果需要显式指定，请参考 Boundless 官方文档${NC}"
+}
+
+# 5. 删除节点文件
 remove_node() {
     echo -e "${GREEN}开始删除节点文件...${NC}"
 
@@ -190,14 +240,17 @@ while true; do
             stake_usdc
             ;;
         4)
-            remove_node
+            stake_eth
             ;;
         5)
+            remove_node
+            ;;
+        6)
             echo -e "${GREEN}退出脚本${NC}"
             exit 0
             ;;
         *)
-            echo -e "${RED}无效选项，请输入 1-5${NC}"
+            echo -e "${RED}无效选项，请输入 1-6${NC}"
             ;;
     esac
     echo
