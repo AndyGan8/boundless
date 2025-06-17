@@ -6,7 +6,6 @@
 REPO_URL="https://github.com/boundless-xyz/boundless"
 RELEASE_TAG="release-0.10"
 ENV_FILE=".env.base-mainnet"
-CONTRACT_ADDRESS="0x26759dbB201aFbA361Bec78E097Aa3942B0b4AB8"
 
 # 颜色定义
 RED='\033[0;31m'
@@ -84,13 +83,13 @@ configure_env() {
     fi
 
     # 提示用户输入 RPC 和私钥
-    read -p "请输入 Base 主网 RPC URL (例如 https://mainnet.base.org): " rpc_url
+    echo -e "${YELLOW}建议使用 Alchemy 或 Infura 的 Base 主网 RPC URL以避免速率限制${NC}"
+    read -p "请输入 Base 主网 RPC URL (例如 https://base-mainnet.g.alchemy.com/v2/your-api-key): " rpc_url
     read -p "请输入钱包私钥: " private_key
 
     # 写入配置文件
     echo "RPC_URL=$rpc_url" > $ENV_FILE
     echo "PRIVATE_KEY=$private_key" >> $ENV_FILE
-    echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> $ENV_FILE
 
     # 使配置文件生效
     source $ENV_FILE
@@ -122,17 +121,29 @@ stake_usdc() {
         exit 1
     fi
 
-    # 执行质押 0.01 USDC
-    echo "执行质押 0.01 USDC 到合约 $CONTRACT_ADDRESS..."
-    boundless --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" account deposit-stake 0.01
+    # 执行质押 0.1 USDC，添加重试机制
+    echo "执行质押 0.1 USDC..."
+    max_attempts=3
+    attempt=1
+    while [ $attempt -le $max_attempts ]; do
+        echo -e "${YELLOW}尝试 $attempt/$max_attempts...${NC}"
+        boundless --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" account deposit-stake 0.1
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}质押成功！请检查 CLI 返回的质押信息${NC}"
+            return 0
+        fi
+        echo -e "${RED}尝试 $attempt 失败，重试中...${NC}"
+        sleep 5 # 等待 5 秒后重试
+        ((attempt++))
+    done
 
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}质押成功！请检查 CLI 返回的质押信息${NC}"
-    else
-        echo -e "${RED}质押失败，请检查 RPC URL、私钥、USDC 余额或网络连接${NC}"
-        echo -e "${YELLOW}提示：确保钱包在 Base 主网上有至少 0.01 USDC 和足够的 ETH 用于 Gas 费用${NC}"
-        echo -e "${YELLOW}USDC 合约地址：0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913${NC}"
-    fi
+    echo -e "${RED}质押失败，请检查以下内容：${NC}"
+    echo -e "${YELLOW}- RPC URL：确保使用 Alchemy/Infura 的 Base 主网 RPC，避免速率限制${NC}"
+    echo -e "${YELLOW}- 私钥：确保私钥正确且对应钱包有权限${NC}"
+    echo -e "${YELLOW}- USDC 余额：钱包需有至少 0.1 USDC（合约：0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913）${NC}"
+    echo -e "${YELLOW}- ETH 余额：钱包需有足够 ETH 支付 Gas 费用${NC}"
+    echo -e "${YELLOW}- CLI 参数：检查是否需要以 wei 单位输入（0.1 USDC = 100000）${NC}"
+    echo -e "${YELLOW}- 合约地址：如果需要显式指定，请参考 Boundless 官方文档${NC}"
 }
 
 # 4. 删除节点文件
