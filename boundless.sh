@@ -92,56 +92,15 @@ EOL
 install_and_run() {
   log "开始安装和运行 Boundless 节点..."
 
-  # 检查是否已安装 Boundless CLI
-  if ! command -v boundless &> /dev/null; then
-    log "未检测到 Boundless CLI，正在安装..."
-
-    # 安装 Node.js 和 npm
-    if ! command -v npm &> /dev/null; then
-      log "安装 Node.js 和 npm..."
-      sudo apt update
-      sudo apt install -y nodejs npm >> "$LOG_FILE" 2>&1 || {
-        log "Node.js 和 npm 安装失败，请检查日志 $LOG_FILE"
-        exit 1
-      }
-      log "Node.js 和 npm 安装完成"
-    fi
-
-    # 安装 Boundless CLI
-    log "安装 Boundless CLI..."
-    npm install -g @boundlessprotocol/cli >> "$LOG_FILE" 2>&1 || {
-      log "Boundless CLI 安装失败，请检查日志 $LOG_FILE"
-      exit 1
-    }
-    log "Boundless CLI 安装完成"
-  else
-    log "Boundless CLI 已安装"
-  fi
-
-  # 检查 Docker 是否安装
-  if ! command -v docker &> /dev/null; then
-    log "安装 Docker..."
+  # 检查是否安装 Git
+  if ! command -v git &> /dev/null; then
+    log "安装 Git..."
     sudo apt update
-    sudo apt install -y docker.io >> "$LOG_FILE" 2>&1 || {
-      log "Docker 安装失败，请检查日志 $LOG_FILE"
+    sudo apt install -y git >> "$LOG_FILE" 2>&1 || {
+      log "Git 安装失败，请检查日志 $LOG_FILE"
       exit 1
     }
-    sudo systemctl start docker
-    sudo systemctl enable docker
-    log "Docker 安装完成"
-  fi
-
-  # 检查 NVIDIA Docker 支持
-  if ! command -v nvidia-container-toolkit &> /dev/null; then
-    log "安装 NVIDIA Docker 支持..."
-    sudo apt update
-    sudo apt install -y nvidia-container-toolkit >> "$LOG_FILE" 2>&1 || {
-      log "NVIDIA Docker 安装失败，请检查日志 $LOG_FILE"
-      exit 1
-    }
-    sudo nvidia-ctk runtime configure --runtime=docker >> "$LOG_FILE" 2>&1
-    sudo systemctl restart docker
-    log "NVIDIA Docker 支持安装完成"
+    log "Git 安装完成"
   fi
 
   # 克隆 Boundless 仓库
@@ -161,6 +120,68 @@ install_and_run() {
     log "Boundless 仓库已存在"
   fi
 
+  # 安装 Rust
+  if ! command -v cargo &> /dev/null; then
+    log "安装 Rust..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y >> "$LOG_FILE" 2>&1 || {
+      log "Rust 安装失败，请检查日志 $LOG_FILE"
+      exit 1
+    }
+    source "$HOME/.cargo/env"
+    log "Rust 安装完成"
+  else
+    log "Rust 已安装"
+  fi
+
+  # 安装 Risc0
+  if ! command -v rzup &> /dev/null; then
+    log "安装 Risc0..."
+    curl -L https://risczero.com/install | bash >> "$LOG_FILE" 2>&1 || {
+      log "Risc0 安装失败，请检查日志 $LOG_FILE"
+      exit 1
+    }
+    source "$HOME/.bashrc"
+    rzup install >> "$LOG_FILE" 2>&1 || {
+      log "Risc0 工具链安装失败，请检查日志 $LOG_FILE"
+      exit 1
+    }
+    log "Risc0 安装完成"
+  else
+    log "Risc0 已安装"
+  fi
+
+  # 安装 Bento 客户端
+  if ! command -v bento_cli &> /dev/null; then
+    log "安装 Bento 客户端..."
+    cargo install --git https://github.com/risc0/risc0 bento-client --bin bento_cli >> "$LOG_FILE" 2>&1 || {
+      log "Bento 客户端安装失败，请检查日志 $LOG_FILE"
+      exit 1
+    }
+    log "Bento 客户端安装完成"
+  else
+    log "Bento 客户端已安装"
+  fi
+
+  # 设置 PATH
+  export PATH="$HOME/.cargo/bin:$PATH"
+  if ! grep -q 'export PATH="$HOME/.cargo/bin:$PATH"' "$HOME/.bashrc"; then
+    echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$HOME/.bashrc"
+    source "$HOME/.bashrc"
+    log "PATH 已更新并写入 ~/.bashrc"
+  fi
+
+  # 安装 Boundless CLI
+  if ! command -v boundless &> /dev/null; then
+    log "安装 Boundless CLI..."
+    cargo install --locked boundless-cli >> "$LOG_FILE" 2>&1 || {
+      log "Boundless CLI 安装失败，请检查日志 $LOG_FILE"
+      exit 1
+    }
+    log "Boundless CLI 安装完成"
+  else
+    log "Boundless CLI 已安装"
+  fi
+
   # 配置环境变量
   configure_env || {
     log "环境变量配置失败"
@@ -169,6 +190,7 @@ install_and_run() {
 
   # 设置 Boundless 环境变量（VERIFIER_ADDRESS 等）
   log "设置 Boundless 环境变量..."
+  cd "$HOME/boundless"
   boundless config set-env --network sepolia >> "$LOG_FILE" 2>&1 || {
     log "设置 Boundless 环境变量失败，请检查日志 $LOG_FILE"
     exit 1
@@ -188,7 +210,7 @@ install_and_run() {
 
   # 在 screen 会话中运行 Boundless Broker
   log "启动 Boundless Broker 在 screen 会话中..."
-  screen -dmS boundless boundless broker start --rpc-url "$RPC_URL" >> "$LOG_FILE" 2>&1
+  screen -dmS boundless boundless broker start >> "$LOG_FILE" 2>&1
   if [ $? -eq 0 ]; then
     log "Boundless Broker 已启动，screen 会话名称为 'boundless'"
     log "使用 'screen -r boundless' 查看会话"
@@ -212,9 +234,16 @@ view_logs() {
 deposit_stake() {
   log "发起质押 (boundless account deposit-stake 10)..."
   source "$ENV_FILE"
-  boundless --rpc-url "$RPC_URL" account deposit-stake 10 >> "$LOG_FILE" 2>&1 || {
+  boundless account deposit-stake 10 >> "$LOG_FILE" 2>&1 || {
     log "质押失败，请检查日志 $LOG_FILE"
-    return 1
+    log "提示：请确保账户有足够的 USDC 和 ETH（可通过 https://faucet.circle.com 领取 Sepolia 测试 USDC）"
+    log "尝试使用显式 RPC_URL 重试..."
+    boundless --rpc-url "$RPC_URL" account deposit-stake 10 >> "$LOG_FILE" 2>&1 || {
+      log "使用显式 RPC_URL 质押仍失败，请检查日志 $LOG_FILE"
+      return 1
+    }
+    log "质押操作已完成（使用显式 RPC_URL）"
+    return 0
   }
   log "质押操作已完成"
 }
@@ -225,6 +254,7 @@ check_balance() {
   source "$ENV_FILE"
   boundless account balance >> "$LOG_FILE" 2>&1 || {
     log "查询余额失败，请检查日志 $LOG_FILE"
+    log "提示：请确保账户有足够的 USDC 和 ETH（可通过 https://faucet.circle.com 领取 Sepolia 测试 USDC）"
     return 1
   }
   log "余额查询完成，查看日志 $LOG_FILE 获取详情"
@@ -242,12 +272,15 @@ delete_node_and_session() {
     log "未找到 screen 会话 'boundless'"
   fi
 
-  # 卸载 Boundless CLI
-  log "卸载 Boundless CLI..."
-  npm uninstall -g @boundlessprotocol/cli >> "$LOG_FILE" 2>&1 || {
+  # 卸载 Boundless CLI 和 Bento 客户端
+  log "卸载 Boundless CLI 和 Bento 客户端..."
+  cargo uninstall boundless-cli >> "$LOG_FILE" 2>&1 || {
     log "警告：Boundless CLI 卸载失败，请检查日志 $LOG_FILE"
   }
-  log "Boundless CLI 卸载完成"
+  cargo uninstall bento-client >> "$LOG_FILE" 2>&1 || {
+    log "警告：Bento 客户端卸载失败，请检查日志 $LOG_FILE"
+  }
+  log "Boundless CLI 和 Bento 客户端卸载完成"
 
   # 删除 Boundless 目录及其内容
   if [ -d "$HOME/boundless" ]; then
