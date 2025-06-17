@@ -107,7 +107,7 @@ install_and_run() {
       log "Node.js 和 npm 安装完成"
     fi
 
-    # 安装 Boundless CLI（假设通过 npm，需根据官方文档确认）
+    # 安装 Boundless CLI
     log "安装 Boundless CLI..."
     npm install -g @boundlessprotocol/cli >> "$LOG_FILE" 2>&1 || {
       log "Boundless CLI 安装失败，请检查日志 $LOG_FILE"
@@ -161,9 +161,9 @@ view_logs() {
 deposit_stake() {
   log "发起质押 (boundless account deposit-stake 10)..."
   source "$ENV_FILE"
-  boundless account deposit-stake 10 --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" >> "$LOG_FILE" 2>&1 || {
+  boundless account deposit-stake 10 >> "$LOG_FILE" 2>&1 || {
     log "质押失败，请检查日志 $LOG_FILE"
-    exit 1
+    return 1
   }
   log "质押操作已完成"
 }
@@ -174,7 +174,7 @@ check_balance() {
   source "$ENV_FILE"
   boundless account balance --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" >> "$LOG_FILE" 2>&1 || {
     log "查询余额失败，请检查日志 $LOG_FILE"
-    exit 1
+    return 1
   }
   log "余额查询完成，查看日志 $LOG_FILE 获取详情"
 }
