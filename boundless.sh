@@ -5,7 +5,8 @@
 # 环境变量
 REPO_URL="https://github.com/boundless-xyz/boundless"
 RELEASE_TAG="release-0.10"
-ENV_FILE=".env.eth-sepolia"
+ENV_FILE=".env.base-mainnet"
+CONTRACT_ADDRESS="0x26759dbB201aFbA361Bec78E097Aa3942B0b4AB8"
 
 # 颜色定义
 RED='\033[0;31m'
@@ -83,12 +84,13 @@ configure_env() {
     fi
 
     # 提示用户输入 RPC 和私钥
-    read -p "请输入 Sepolia RPC URL: " rpc_url
+    read -p "请输入 Base 主网 RPC URL (例如 https://mainnet.base.org): " rpc_url
     read -p "请输入钱包私钥: " private_key
 
     # 写入配置文件
     echo "RPC_URL=$rpc_url" > $ENV_FILE
     echo "PRIVATE_KEY=$private_key" >> $ENV_FILE
+    echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> $ENV_FILE
 
     # 使配置文件生效
     source $ENV_FILE
@@ -120,15 +122,16 @@ stake_usdc() {
         exit 1
     fi
 
-    # 执行质押，显式传递 --rpc-url 和 --private-key
-    echo "执行质押 10 USDC..."
-    boundless --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" account deposit-stake 10
+    # 执行质押 0.01 USDC
+    echo "执行质押 0.01 USDC 到合约 $CONTRACT_ADDRESS..."
+    boundless --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" account deposit-stake 0.01
 
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}质押成功！请检查 CLI 返回的质押信息${NC}"
     else
-        echo -e "${RED}质押失败，请检查 RPC URL、私钥或网络连接${NC}"
-        echo -e "${YELLOW}提示：确保已通过 https://faucet.circle.com 领取 Sepolia USDC${NC}"
+        echo -e "${RED}质押失败，请检查 RPC URL、私钥、USDC 余额或网络连接${NC}"
+        echo -e "${YELLOW}提示：确保钱包在 Base 主网上有至少 0.01 USDC 和足够的 ETH 用于 Gas 费用${NC}"
+        echo -e "${YELLOW}USDC 合约地址：0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913${NC}"
     fi
 }
 
