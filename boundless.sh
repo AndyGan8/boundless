@@ -111,17 +111,24 @@ stake_usdc() {
         exit 1
     fi
 
-    # 使配置文件生效
+    # 加载环境变量
     source $ENV_FILE
 
-    # 执行质押
+    # 检查 RPC_URL 和 PRIVATE_KEY 是否存在
+    if [ -z "$RPC_URL" ] || [ -z "$PRIVATE_KEY" ]; then
+        echo -e "${RED}环境变量 RPC_URL 或 PRIVATE_KEY 未设置，请检查 $ENV_FILE 文件${NC}"
+        exit 1
+    fi
+
+    # 执行质押，显式传递 --rpc-url 和 --private-key
     echo "执行质押 10 USDC..."
-    boundless account deposit-stake 10
+    boundless --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" account deposit-stake 10
 
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}质押成功！请检查 CLI 返回的质押信息${NC}"
     else
-        echo -e "${RED}质押失败，请检查配置或网络${NC}"
+        echo -e "${RED}质押失败，请检查 RPC URL、私钥或网络连接${NC}"
+        echo -e "${YELLOW}提示：确保已通过 https://faucet.circle.com 领取 Sepolia USDC${NC}"
     fi
 }
 
