@@ -23,7 +23,7 @@ check_command() {
 
 # 选项菜单
 show_menu() {
-    echo -e "${YELLOW}=== Boundless CLI 操作菜单 脚本免费开源，推特@mingfei2022 ===${NC}"
+    echo -e "${YELLOW}=== Boundless CLI 操作菜单 脚本免费开源，推特@mingfei2022.感谢关注 ===${NC}"
     echo "1. 安装节点"
     echo "2. 配置环境文件"
     echo "3. 质押 USDC"
