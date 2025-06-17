@@ -161,7 +161,7 @@ view_logs() {
 deposit_stake() {
   log "发起质押 (boundless account deposit-stake 10)..."
   source "$ENV_FILE"
-  boundless account deposit-stake 10 >> "$LOG_FILE" 2>&1 || {
+  boundless --rpc-url "$RPC_URL" account deposit-stake 10 >> "$LOG_FILE" 2>&1 || {
     log "质押失败，请检查日志 $LOG_FILE"
     return 1
   }
@@ -172,7 +172,7 @@ deposit_stake() {
 check_balance() {
   log "查看钱包 ETH 和 USDC 余额..."
   source "$ENV_FILE"
-  boundless account balance --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" >> "$LOG_FILE" 2>&1 || {
+  boundless account balance >> "$LOG_FILE" 2>&1 || {
     log "查询余额失败，请检查日志 $LOG_FILE"
     return 1
   }
