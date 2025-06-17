@@ -71,7 +71,7 @@ EOL
   fi
 
   log "配置 $ENV_FILE 文件..."
-  read -p "请输入 RPC_URL（例如 https://sepolia.infura.io/v3/<YOUR_PROJECT_ID>）: " rpc_url
+  read -p "请输入 RPC_URL（例如 https://sepolia.infura.io/v3/<YOUR_PROJECT_ID> 或 Alchemy RPC）: " rpc_url
   read -p "请输入 PRIVATE_KEY（以 0x 开头的 64 位十六进制字符串）: " private_key
 
   validate_env "$rpc_url" "$private_key" || { log "输入验证失败"; exit 1; }
@@ -118,11 +118,62 @@ install_and_run() {
     log "Boundless CLI 已安装"
   fi
 
+  # 检查 Docker 是否安装
+  if ! command -v docker &> /dev/null; then
+    log "安装 Docker..."
+    sudo apt update
+    sudo apt install -y docker.io >> "$LOG_FILE" 2>&1 || {
+      log "Docker 安装失败，请检查日志 $LOG_FILE"
+      exit 1
+    }
+    sudo systemctl start docker
+    sudo systemctl enable docker
+    log "Docker 安装完成"
+  fi
+
+  # 检查 NVIDIA Docker 支持
+  if ! command -v nvidia-container-toolkit &> /dev/null; then
+    log "安装 NVIDIA Docker 支持..."
+    sudo apt update
+    sudo apt install -y nvidia-container-toolkit >> "$LOG_FILE" 2>&1 || {
+      log "NVIDIA Docker 安装失败，请检查日志 $LOG_FILE"
+      exit 1
+    }
+    sudo nvidia-ctk runtime configure --runtime=docker >> "$LOG_FILE" 2>&1
+    sudo systemctl restart docker
+    log "NVIDIA Docker 支持安装完成"
+  fi
+
+  # 克隆 Boundless 仓库
+  if [ ! -d "$HOME/boundless" ]; then
+    log "克隆 Boundless 仓库..."
+    git clone https://github.com/boundless-xyz/boundless "$HOME/boundless" >> "$LOG_FILE" 2>&1 || {
+      log "克隆 Boundless 仓库失败，请检查日志 $LOG_FILE"
+      exit 1
+    }
+    cd "$HOME/boundless"
+    git checkout release-0.10 >> "$LOG_FILE" 2>&1 || {
+      log "切换到 release-0.10 分支失败，请检查日志 $LOG_FILE"
+      exit 1
+    }
+    log "Boundless 仓库克隆完成"
+  else
+    log "Boundless 仓库已存在"
+  fi
+
   # 配置环境变量
   configure_env || {
     log "环境变量配置失败"
     exit 1
   }
+
+  # 设置 Boundless 环境变量（VERIFIER_ADDRESS 等）
+  log "设置 Boundless 环境变量..."
+  boundless config set-env --network sepolia >> "$LOG_FILE" 2>&1 || {
+    log "设置 Boundless 环境变量失败，请检查日志 $LOG_FILE"
+    exit 1
+  }
+  log "Boundless 环境变量设置完成"
 
   # 检查 screen 是否安装
   if ! command -v screen &> /dev/null; then
@@ -135,14 +186,14 @@ install_and_run() {
     log "screen 安装完成"
   fi
 
-  # 在 screen 会话中运行 Boundless CLI
-  log "启动 Boundless CLI 在 screen 会话中..."
-  screen -dmS boundless boundless start --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" >> "$LOG_FILE" 2>&1
+  # 在 screen 会话中运行 Boundless Broker
+  log "启动 Boundless Broker 在 screen 会话中..."
+  screen -dmS boundless boundless broker start --rpc-url "$RPC_URL" >> "$LOG_FILE" 2>&1
   if [ $? -eq 0 ]; then
-    log "Boundless CLI 已启动，screen 会话名称为 'boundless'"
+    log "Boundless Broker 已启动，screen 会话名称为 'boundless'"
     log "使用 'screen -r boundless' 查看会话"
   else
-    log "Boundless CLI 启动失败，请检查日志 $LOG_FILE"
+    log "Boundless Broker 启动失败，请检查日志 $LOG_FILE"
     exit 1
   fi
 }
@@ -231,7 +282,7 @@ delete_node_and_session() {
 main_menu() {
   while true; do
     echo "=== Boundless 安装与管理菜单 ==="
-    echo "1. 安装节点，配置 RPC_URL 和 PRIVATE_KEY，并在 screen 中运行 Boundless CLI"
+    echo "1. 安装节点，配置 RPC_URL 和 PRIVATE_KEY，并在 screen 中运行 Boundless Broker"
     echo "2. 查看日志"
     echo "3. 配置或更新 RPC_URL 和 PRIVATE_KEY"
     echo "4. 发起质押 (boundless account deposit-stake 10)"
