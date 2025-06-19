@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # Boundless CLI 安装与操作脚本
 
 # 环境变量
@@ -75,7 +74,7 @@ install_node() {
 # 2. 配置环境文件
 configure_env() {
     echo -e "${GREEN}开始配置环境文件...${NC}"
-    
+
     if [ ! -f $ENV_FILE ]; then
         echo -e "${YELLOW}创建 $ENV_FILE 文件${NC}"
         touch $ENV_FILE
@@ -122,13 +121,20 @@ stake_usdc() {
         exit 1
     fi
 
-    # 执行质押 0.1 USDC，添加重试机制
-    echo "执行质押 0.1 USDC..."
+    # 提示用户输入质押金额
+    read -p "请输入要质押的 USDC 金额（例如 0.1）: " usdc_amount
+    if [[ ! $usdc_amount =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+        echo -e "${RED}无效的 USDC 金额，请输入有效的数字（例如 0.1）${NC}"
+        return 1
+    fi
+
+    # 执行质押，添加重试机制
+    echo "执行质押 $usdc_amount USDC..."
     max_attempts=3
     attempt=1
     while [ $attempt -le $max_attempts ]; do
         echo -e "${YELLOW}尝试 $attempt/$max_attempts...${NC}"
-        boundless --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" account deposit-stake 0.1
+        boundless --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" account deposit-stake "$usdc_amount"
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}质押成功！请检查 CLI 返回的质押信息${NC}"
             return 0
@@ -141,9 +147,9 @@ stake_usdc() {
     echo -e "${RED}质押失败，请检查以下内容：${NC}"
     echo -e "${YELLOW}- RPC URL：确保使用 Alchemy/Infura 的 Base 主网 RPC，避免速率限制${NC}"
     echo -e "${YELLOW}- 私钥：确保私钥正确且对应钱包有权限${NC}"
-    echo -e "${YELLOW}- USDC 余额：钱包需有至少 0.1 USDC（合约：0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913）${NC}"
+    echo -e "${YELLOW}- USDC 余额：钱包需有至少 $usdc_amount USDC（合约：0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913）${NC}"
     echo -e "${YELLOW}- ETH 余额：钱包需有足够 ETH 支付 Gas 费用${NC}"
-    echo -e "${YELLOW}- CLI 参数：检查是否需要以 wei 单位输入（0.1 USDC = 100000）${NC}"
+    echo -e "${YELLOW}- CLI 参数：检查是否需要以 wei 单位输入（例如 $usdc_amount USDC = $((usdc_amount * 1000000)) wei）${NC}"
     echo -e "${YELLOW}- 合约地址：如果需要显式指定，请参考 Boundless 官方文档${NC}"
 }
 
@@ -172,13 +178,20 @@ stake_eth() {
         exit 1
     fi
 
-    # 执行质押 0.00009 ETH，添加重试机制
-    echo "执行质押 0.00009 ETH..."
+    # 提示用户输入质押金额
+    read -p "请输入要质押的 ETH 金额（例如 0.00009）: " eth_amount
+    if [[ ! $eth_amount =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+        echo -e "${RED}无效的 ETH 金额，请输入有效的数字（例如 0.00009）${NC}"
+        return 1
+    fi
+
+    # 执行质押，添加重试机制
+    echo "执行质押 $eth_amount ETH..."
     max_attempts=3
     attempt=1
     while [ $attempt -le $max_attempts ]; do
         echo -e "${YELLOW}尝试 $attempt/$max_attempts...${NC}"
-        boundless --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" account deposit 0.00009
+        boundless --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" account deposit "$eth_amount"
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}质押成功！请检查 CLI 返回的质押信息${NC}"
             return 0
@@ -191,8 +204,8 @@ stake_eth() {
     echo -e "${RED}质押失败，请检查以下内容：${NC}"
     echo -e "${YELLOW}- RPC URL：确保使用 Alchemy/Infura 的 Base 主网 RPC，避免速率限制${NC}"
     echo -e "${YELLOW}- 私钥：确保私钥正确且对应钱包有权限${NC}"
-    echo -e "${YELLOW}- ETH 余额：钱包需有至少 0.00009 ETH 外加 Gas 费用${NC}"
-    echo -e "${YELLOW}- CLI 参数：检查是否需要以 wei 单位输入（0.00009 ETH = 90000000000000）${NC}"
+    echo -e "${YELLOW}- ETH 余额：钱包需有至少 $eth_amount ETH 外加 Gas 费用${NC}"
+    echo -e "${YELLOW}- CLI 参数：检查是否需要以 wei 单位输入（例如 $eth_amount ETH = $((eth_amount * 1000000000000000000)) wei）${NC}"
     echo -e "${YELLOW}- 合约地址：如果需要显式指定，请参考 Boundless 官方文档${NC}"
 }
 
